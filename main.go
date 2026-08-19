@@ -56,6 +56,7 @@ func run() error {
 			repository.NewFileRepository(client),
 			cfg.MaxUploadBytes,
 		),
+		AccessPIN:      cfg.AccessPIN,
 		AllowedOrigins: cfg.AllowedOrigins,
 		Timeout:        cfg.RequestTimeout,
 		StaticDir:      os.Getenv("STATIC_DIR"),
@@ -72,6 +73,9 @@ func run() error {
 
 	serverErrors := make(chan error, 1)
 	go func() {
+		if cfg.AccessPIN == "" {
+			slog.Warn("ACCESS_PIN is not set, every request is allowed through")
+		}
 		slog.Info("listening", "port", cfg.Port, "database", cfg.DatabaseName)
 		serverErrors <- server.ListenAndServe()
 	}()

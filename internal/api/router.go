@@ -10,6 +10,7 @@ import (
 
 type Options struct {
 	Books          *Handler
+	AccessPIN      string
 	AllowedOrigins []string
 	Timeout        time.Duration
 	StaticDir      string
@@ -17,7 +18,7 @@ type Options struct {
 
 func NewRouter(opts Options) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", opts.Books.Health)
+	mux.HandleFunc("POST /api/unlock", opts.Books.Unlock)
 	mux.HandleFunc("GET /api/books", opts.Books.ListBooks)
 	mux.HandleFunc("POST /api/books", opts.Books.RegisterBook)
 	mux.HandleFunc("GET /api/books/{key}", opts.Books.GetBook)
@@ -29,7 +30,8 @@ func NewRouter(opts Options) http.Handler {
 	mux.HandleFunc("GET /api/books/{key}/file", opts.Books.DownloadFile)
 
 	root := http.NewServeMux()
-	root.Handle("/api/", mux)
+	root.HandleFunc("GET /api/health", opts.Books.Health)
+	root.Handle("/api/", withPIN(opts.AccessPIN)(mux))
 	root.Handle("/", spaHandler(opts.StaticDir))
 
 	return chain(root,

@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Port           string
 	MongoURI       string
+	AccessPIN      string
 	DatabaseName   string
 	AllowedOrigins []string
 	RequestTimeout time.Duration
@@ -21,6 +22,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Port:           envOr("PORT", "8080"),
 		MongoURI:       os.Getenv("MONGODB_URI"),
+		AccessPIN:      strings.TrimSpace(os.Getenv("ACCESS_PIN")),
 		DatabaseName:   envOr("MONGODB_DATABASE", "mereader"),
 		AllowedOrigins: splitAndTrim(envOr("ALLOWED_ORIGINS", "*")),
 		RequestTimeout: 60 * time.Second,

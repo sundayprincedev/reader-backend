@@ -20,18 +20,27 @@ cp .env.example .env      # fill in MONGODB_URI
 go run .                  # http://localhost:8080
 ```
 
-## No accounts
+## The PIN
 
-This is a single-library service with no authentication: there is one shelf, and every request sees it.
-That is deliberate for a personal deployment, but it means **anyone who knows the URL can read, upload, and
-delete books**. Keep the URL private, or put the service behind a proxy or network rule that only you can
-reach.
+There are no accounts — one shelf, and every request sees it. Instead of a login, the API is gated by a
+shared PIN sent as an `X-Reader-Pin` header. Set it with `ACCESS_PIN`; leave it unset and every request is
+allowed through, which the server warns about at startup.
+
+`/api/health` stays open so Railway's healthcheck keeps working. Everything else needs the PIN.
+
+Wrong PINs are rate limited: five failures from an address trigger a 15 minute lockout, and the correct PIN
+is refused during it. A second cap covers the whole service, so rotating addresses does not help. That
+turns a short numeric PIN from something a script cracks in seconds into something that would take years.
+
+It is still a shared secret in a header, not real authentication. It keeps out scanners and passers-by; it
+would not stop someone determined who knows the URL.
 
 ## Environment
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `MONGODB_URI` | yes | — | MongoDB connection string |
+| `ACCESS_PIN` | no | — | Gates the API; unset means open |
 | `MONGODB_DATABASE` | no | `mereader` | Database name |
 | `PORT` | no | `8080` | Listen port (Railway sets this) |
 | `ALLOWED_ORIGINS` | no | `*` | Comma-separated CORS origins |
@@ -42,7 +51,8 @@ reach.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/health` | Liveness probe |
+| `GET` | `/api/health` | Liveness probe, not gated |
+| `POST` | `/api/unlock` | Check a PIN; 204 when correct |
 | `GET` | `/api/books` | Library plus aggregate stats |
 | `POST` | `/api/books` | Register or update a book by fingerprint |
 | `GET` | `/api/books/{key}` | One book with its saved position |
@@ -74,14 +84,14 @@ internal/config             environment loading
 internal/storage            Mongo connection, indexes, GridFS bucket
 internal/models             documents and request/response shapes
 internal/repository         data access for books and files
-internal/api                handlers, middleware, routing
+internal/api                handlers, middleware, PIN gate, routing
 ```
 
 ## Deploying on Railway
 
 1. [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo** → this repository.
    `railway.json` selects the Dockerfile and the `/api/health` healthcheck.
-2. In **Variables**, set `MONGODB_URI`, `MONGODB_DATABASE`, and `ALLOWED_ORIGINS`.
+2. In **Variables**, set `MONGODB_URI`, `MONGODB_DATABASE`, `ACCESS_PIN`, and `ALLOWED_ORIGINS`.
    Do **not** set `PORT` — Railway injects it and the server already reads it.
 3. In Atlas → **Network Access**, allow `0.0.0.0/0`. Railway has no fixed egress IPs on the standard plan,
    and deploys time out until this is done.

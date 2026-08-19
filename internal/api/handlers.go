@@ -27,6 +27,10 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (h *Handler) Unlock(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) ListBooks(w http.ResponseWriter, r *http.Request) {
 	books, err := h.books.List(r.Context())
 	if err != nil {
