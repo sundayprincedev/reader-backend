@@ -10,10 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sundayprincedev/mereader/internal/api"
-	"github.com/sundayprincedev/mereader/internal/config"
-	"github.com/sundayprincedev/mereader/internal/repository"
-	"github.com/sundayprincedev/mereader/internal/storage"
+	"github.com/sundayprincedev/reader-backend/internal/api"
+	"github.com/sundayprincedev/reader-backend/internal/auth"
+	"github.com/sundayprincedev/reader-backend/internal/config"
+	"github.com/sundayprincedev/reader-backend/internal/repository"
+	"github.com/sundayprincedev/reader-backend/internal/storage"
 )
 
 func main() {
@@ -50,15 +51,26 @@ func run() error {
 		return err
 	}
 
-	handler := api.NewHandler(repository.NewBookRepository(client))
-	router := api.NewRouter(handler, cfg.AllowedOrigins, cfg.RequestTimeout, os.Getenv("STATIC_DIR"))
+	issuer := auth.NewIssuer(cfg.JWTSecret)
+	router := api.NewRouter(api.Options{
+		Books: api.NewHandler(
+			repository.NewBookRepository(client),
+			repository.NewFileRepository(client),
+			cfg.MaxUploadBytes,
+		),
+		Auth:           api.NewAuthHandler(repository.NewUserRepository(client), issuer),
+		Issuer:         issuer,
+		AllowedOrigins: cfg.AllowedOrigins,
+		Timeout:        cfg.RequestTimeout,
+		StaticDir:      os.Getenv("STATIC_DIR"),
+	})
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		WriteTimeout:      5 * time.Minute,
 		IdleTimeout:       90 * time.Second,
 	}
 

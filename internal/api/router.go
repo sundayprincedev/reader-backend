@@ -6,28 +6,47 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/sundayprincedev/reader-backend/internal/auth"
 )
 
-func NewRouter(handler *Handler, allowedOrigins []string, timeout time.Duration, staticDir string) http.Handler {
-	api := http.NewServeMux()
-	api.HandleFunc("GET /api/health", handler.Health)
-	api.Handle("GET /api/books", withOwner(http.HandlerFunc(handler.ListBooks)))
-	api.Handle("POST /api/books", withOwner(http.HandlerFunc(handler.RegisterBook)))
-	api.Handle("GET /api/books/{key}", withOwner(http.HandlerFunc(handler.GetBook)))
-	api.Handle("DELETE /api/books/{key}", withOwner(http.HandlerFunc(handler.DeleteBook)))
-	api.Handle("PUT /api/books/{key}/progress", withOwner(http.HandlerFunc(handler.SaveProgress)))
-	api.Handle("POST /api/books/{key}/reset", withOwner(http.HandlerFunc(handler.ResetProgress)))
-	api.Handle("POST /api/books/{key}/restore", withOwner(http.HandlerFunc(handler.RestoreProgress)))
+type Options struct {
+	Books          *Handler
+	Auth           *AuthHandler
+	Issuer         *auth.Issuer
+	AllowedOrigins []string
+	Timeout        time.Duration
+	StaticDir      string
+}
+
+func NewRouter(opts Options) http.Handler {
+	guard := withAuth(opts.Issuer)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/health", opts.Books.Health)
+	mux.HandleFunc("POST /api/auth/register", opts.Auth.Register)
+	mux.HandleFunc("POST /api/auth/login", opts.Auth.Login)
+	mux.Handle("GET /api/auth/me", guard(http.HandlerFunc(opts.Auth.Me)))
+
+	mux.Handle("GET /api/books", guard(http.HandlerFunc(opts.Books.ListBooks)))
+	mux.Handle("POST /api/books", guard(http.HandlerFunc(opts.Books.RegisterBook)))
+	mux.Handle("GET /api/books/{key}", guard(http.HandlerFunc(opts.Books.GetBook)))
+	mux.Handle("DELETE /api/books/{key}", guard(http.HandlerFunc(opts.Books.DeleteBook)))
+	mux.Handle("PUT /api/books/{key}/progress", guard(http.HandlerFunc(opts.Books.SaveProgress)))
+	mux.Handle("POST /api/books/{key}/reset", guard(http.HandlerFunc(opts.Books.ResetProgress)))
+	mux.Handle("POST /api/books/{key}/restore", guard(http.HandlerFunc(opts.Books.RestoreProgress)))
+	mux.Handle("POST /api/books/{key}/file", guard(http.HandlerFunc(opts.Books.UploadFile)))
+	mux.Handle("GET /api/books/{key}/file", guard(http.HandlerFunc(opts.Books.DownloadFile)))
 
 	root := http.NewServeMux()
-	root.Handle("/api/", api)
-	root.Handle("/", spaHandler(staticDir))
+	root.Handle("/api/", mux)
+	root.Handle("/", spaHandler(opts.StaticDir))
 
 	return chain(root,
 		withRecovery,
 		withLogging,
-		withCORS(allowedOrigins),
-		withTimeout(timeout),
+		withCORS(opts.AllowedOrigins),
+		withTimeout(opts.Timeout),
 	)
 }
 

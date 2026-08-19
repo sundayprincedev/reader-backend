@@ -7,18 +7,20 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sundayprincedev/mereader/internal/models"
-	"github.com/sundayprincedev/mereader/internal/repository"
+	"github.com/sundayprincedev/reader-backend/internal/models"
+	"github.com/sundayprincedev/reader-backend/internal/repository"
 )
 
 const maxBodyBytes = 1 << 16
 
 type Handler struct {
-	books *repository.BookRepository
+	books          *repository.BookRepository
+	files          *repository.FileRepository
+	maxUploadBytes int64
 }
 
-func NewHandler(books *repository.BookRepository) *Handler {
-	return &Handler{books: books}
+func NewHandler(books *repository.BookRepository, files *repository.FileRepository, maxUploadBytes int64) *Handler {
+	return &Handler{books: books, files: files, maxUploadBytes: maxUploadBytes}
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
@@ -151,9 +153,21 @@ func (h *Handler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.books.Delete(r.Context(), ownerFrom(r.Context()), key); err != nil {
+	owner := ownerFrom(r.Context())
+
+	book, err := h.books.Get(r.Context(), owner, key)
+	if err != nil {
 		respondRepositoryError(w, err, "could not remove book")
 		return
+	}
+
+	if err := h.books.Delete(r.Context(), owner, key); err != nil {
+		respondRepositoryError(w, err, "could not remove book")
+		return
+	}
+
+	if book.FileID != nil {
+		_ = h.files.Delete(r.Context(), *book.FileID)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

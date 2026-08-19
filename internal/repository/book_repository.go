@@ -9,8 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/sundayprincedev/mereader/internal/models"
-	"github.com/sundayprincedev/mereader/internal/storage"
+	"github.com/sundayprincedev/reader-backend/internal/models"
+	"github.com/sundayprincedev/reader-backend/internal/storage"
 )
 
 var ErrNotFound = errors.New("book not found")
@@ -48,6 +48,7 @@ func (r *BookRepository) Register(ctx context.Context, owner string, req models.
 			{Key: "createdAt", Value: now},
 			{Key: "finished", Value: false},
 			{Key: "secondsRead", Value: int64(0)},
+			{Key: "hasFile", Value: false},
 			{Key: "history", Value: []models.Location{}},
 			{Key: "current", Value: models.Location{}},
 		}},
@@ -197,6 +198,25 @@ func (r *BookRepository) Delete(ctx context.Context, owner, key string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *BookRepository) AttachFile(ctx context.Context, owner, key string, fileID bson.ObjectID) (models.Book, error) {
+	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+	update := bson.D{
+		{Key: "$set", Value: bson.D{
+			{Key: "fileId", Value: fileID},
+			{Key: "hasFile", Value: true},
+		}},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return models.Book{}, err
+	}
+	if result.MatchedCount == 0 {
+		return models.Book{}, ErrNotFound
+	}
+	return r.Get(ctx, owner, key)
 }
 
 func (r *BookRepository) appendHistory(ctx context.Context, filter bson.D, location models.Location) error {

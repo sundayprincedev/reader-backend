@@ -36,8 +36,12 @@ func (c *Client) Collection(name string) *mongo.Collection {
 	return c.database.Collection(name)
 }
 
+func (c *Client) Bucket() *mongo.GridFSBucket {
+	return c.database.GridFSBucket()
+}
+
 func (c *Client) EnsureIndexes(ctx context.Context) error {
-	_, err := c.Collection("books").Indexes().CreateMany(ctx, []mongo.IndexModel{
+	if _, err := c.Collection("books").Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
 			Keys:    bson.D{{Key: "owner", Value: 1}, {Key: "key", Value: 1}},
 			Options: options.Index().SetUnique(true),
@@ -45,6 +49,13 @@ func (c *Client) EnsureIndexes(ctx context.Context) error {
 		{
 			Keys: bson.D{{Key: "owner", Value: 1}, {Key: "updatedAt", Value: -1}},
 		},
+	}); err != nil {
+		return err
+	}
+
+	_, err := c.Collection("users").Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
 	})
 	return err
 }

@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
 
 const (
 	FormatPDF  = "pdf"
@@ -18,19 +22,21 @@ type Location struct {
 }
 
 type Book struct {
-	Key         string     `bson:"key" json:"key"`
-	Owner       string     `bson:"owner" json:"owner"`
-	Title       string     `bson:"title" json:"title"`
-	Author      string     `bson:"author" json:"author"`
-	Format      string     `bson:"format" json:"format"`
-	SizeBytes   int64      `bson:"sizeBytes" json:"sizeBytes"`
-	Current     Location   `bson:"current" json:"current"`
-	History     []Location `bson:"history" json:"history"`
-	Finished    bool       `bson:"finished" json:"finished"`
-	OpenCount   int        `bson:"openCount" json:"openCount"`
-	SecondsRead int64      `bson:"secondsRead" json:"secondsRead"`
-	CreatedAt   time.Time  `bson:"createdAt" json:"createdAt"`
-	UpdatedAt   time.Time  `bson:"updatedAt" json:"updatedAt"`
+	Key         string         `bson:"key" json:"key"`
+	Owner       string         `bson:"owner" json:"owner"`
+	Title       string         `bson:"title" json:"title"`
+	Author      string         `bson:"author" json:"author"`
+	Format      string         `bson:"format" json:"format"`
+	SizeBytes   int64          `bson:"sizeBytes" json:"sizeBytes"`
+	FileID      *bson.ObjectID `bson:"fileId,omitempty" json:"-"`
+	HasFile     bool           `bson:"hasFile" json:"hasFile"`
+	Current     Location       `bson:"current" json:"current"`
+	History     []Location     `bson:"history" json:"history"`
+	Finished    bool           `bson:"finished" json:"finished"`
+	OpenCount   int            `bson:"openCount" json:"openCount"`
+	SecondsRead int64          `bson:"secondsRead" json:"secondsRead"`
+	CreatedAt   time.Time      `bson:"createdAt" json:"createdAt"`
+	UpdatedAt   time.Time      `bson:"updatedAt" json:"updatedAt"`
 }
 
 type RegisterRequest struct {
