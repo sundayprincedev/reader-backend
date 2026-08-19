@@ -161,6 +161,11 @@ func (h *Handler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !book.Removable() {
+		writeError(w, http.StatusConflict, "finish this book before removing it")
+		return
+	}
+
 	if err := h.books.Delete(r.Context(), owner, key); err != nil {
 		respondRepositoryError(w, err, "could not remove book")
 		return

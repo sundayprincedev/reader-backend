@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -37,6 +38,24 @@ type Book struct {
 	SecondsRead int64          `bson:"secondsRead" json:"secondsRead"`
 	CreatedAt   time.Time      `bson:"createdAt" json:"createdAt"`
 	UpdatedAt   time.Time      `bson:"updatedAt" json:"updatedAt"`
+}
+
+func (b Book) MarshalJSON() ([]byte, error) {
+	type plain Book
+
+	return json.Marshal(struct {
+		plain
+		Started   bool `json:"started"`
+		Removable bool `json:"removable"`
+	}{plain(b), b.Started(), b.Removable()})
+}
+
+func (b Book) Started() bool {
+	return b.Current.Percent > 0 || len(b.History) > 0
+}
+
+func (b Book) Removable() bool {
+	return b.Finished || !b.Started()
 }
 
 type RegisterRequest struct {

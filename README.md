@@ -60,6 +60,15 @@ Everything except `/api/health` and the two auth routes needs `Authorization: Be
 Books belong to the account that created them; another account asking for one gets a 404 rather than a 403,
 so the API never confirms that a fingerprint exists.
 
+### Removing a book
+
+A book can only be removed once you have finished it, or if you have never started it. Anything in
+progress returns `409 Conflict`, so you cannot abandon a book halfway and clear it away.
+
+Starting a book over does not make it removable again: the check looks at the reading history, which a
+reset preserves. Every book response carries `started` and `removable` so clients can reflect the rule
+without reimplementing it.
+
 ## Layout
 
 ```
