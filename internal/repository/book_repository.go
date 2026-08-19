@@ -30,9 +30,9 @@ func NewBookRepository(client *storage.Client) *BookRepository {
 	return &BookRepository{collection: client.Collection("books")}
 }
 
-func (r *BookRepository) Register(ctx context.Context, owner string, req models.RegisterRequest) (models.Book, error) {
+func (r *BookRepository) Register(ctx context.Context, req models.RegisterRequest) (models.Book, error) {
 	now := time.Now().UTC()
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: req.Key}}
+	filter := bson.D{{Key: "key", Value: req.Key}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
 			{Key: "title", Value: req.Title},
@@ -43,7 +43,6 @@ func (r *BookRepository) Register(ctx context.Context, owner string, req models.
 		}},
 		{Key: "$inc", Value: bson.D{{Key: "openCount", Value: 1}}},
 		{Key: "$setOnInsert", Value: bson.D{
-			{Key: "owner", Value: owner},
 			{Key: "key", Value: req.Key},
 			{Key: "createdAt", Value: now},
 			{Key: "finished", Value: false},
@@ -63,8 +62,8 @@ func (r *BookRepository) Register(ctx context.Context, owner string, req models.
 	return book, nil
 }
 
-func (r *BookRepository) Get(ctx context.Context, owner, key string) (models.Book, error) {
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+func (r *BookRepository) Get(ctx context.Context, key string) (models.Book, error) {
+	filter := bson.D{{Key: "key", Value: key}}
 
 	var book models.Book
 	err := r.collection.FindOne(ctx, filter).Decode(&book)
@@ -77,10 +76,10 @@ func (r *BookRepository) Get(ctx context.Context, owner, key string) (models.Boo
 	return book, nil
 }
 
-func (r *BookRepository) List(ctx context.Context, owner string) ([]models.Book, error) {
+func (r *BookRepository) List(ctx context.Context) ([]models.Book, error) {
 	opts := options.Find().SetSort(bson.D{{Key: "updatedAt", Value: -1}})
 
-	cursor, err := r.collection.Find(ctx, bson.D{{Key: "owner", Value: owner}}, opts)
+	cursor, err := r.collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +97,7 @@ func (r *BookRepository) List(ctx context.Context, owner string) ([]models.Book,
 	return books, nil
 }
 
-func (r *BookRepository) SaveProgress(ctx context.Context, owner, key string, req models.ProgressRequest) (models.Book, error) {
+func (r *BookRepository) SaveProgress(ctx context.Context, key string, req models.ProgressRequest) (models.Book, error) {
 	now := time.Now().UTC()
 	location := models.Location{
 		Page:     req.Page,
@@ -110,7 +109,7 @@ func (r *BookRepository) SaveProgress(ctx context.Context, owner, key string, re
 		Recorded: now,
 	}
 
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+	filter := bson.D{{Key: "key", Value: key}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
 			{Key: "current", Value: location},
@@ -137,11 +136,11 @@ func (r *BookRepository) SaveProgress(ctx context.Context, owner, key string, re
 		}
 	}
 
-	return r.Get(ctx, owner, key)
+	return r.Get(ctx, key)
 }
 
-func (r *BookRepository) Reset(ctx context.Context, owner, key string) (models.Book, error) {
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+func (r *BookRepository) Reset(ctx context.Context, key string) (models.Book, error) {
+	filter := bson.D{{Key: "key", Value: key}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
 			{Key: "current", Value: models.Location{Recorded: time.Now().UTC()}},
@@ -157,11 +156,11 @@ func (r *BookRepository) Reset(ctx context.Context, owner, key string) (models.B
 	if result.MatchedCount == 0 {
 		return models.Book{}, ErrNotFound
 	}
-	return r.Get(ctx, owner, key)
+	return r.Get(ctx, key)
 }
 
-func (r *BookRepository) Restore(ctx context.Context, owner, key string, index int) (models.Book, error) {
-	book, err := r.Get(ctx, owner, key)
+func (r *BookRepository) Restore(ctx context.Context, key string, index int) (models.Book, error) {
+	book, err := r.Get(ctx, key)
 	if err != nil {
 		return models.Book{}, err
 	}
@@ -172,7 +171,7 @@ func (r *BookRepository) Restore(ctx context.Context, owner, key string, index i
 	target := book.History[index]
 	target.Recorded = time.Now().UTC()
 
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+	filter := bson.D{{Key: "key", Value: key}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
 			{Key: "current", Value: target},
@@ -184,11 +183,11 @@ func (r *BookRepository) Restore(ctx context.Context, owner, key string, index i
 	if _, err := r.collection.UpdateOne(ctx, filter, update); err != nil {
 		return models.Book{}, err
 	}
-	return r.Get(ctx, owner, key)
+	return r.Get(ctx, key)
 }
 
-func (r *BookRepository) Delete(ctx context.Context, owner, key string) error {
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+func (r *BookRepository) Delete(ctx context.Context, key string) error {
+	filter := bson.D{{Key: "key", Value: key}}
 
 	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
@@ -200,12 +199,13 @@ func (r *BookRepository) Delete(ctx context.Context, owner, key string) error {
 	return nil
 }
 
-func (r *BookRepository) AttachFile(ctx context.Context, owner, key string, fileID bson.ObjectID) (models.Book, error) {
-	filter := bson.D{{Key: "owner", Value: owner}, {Key: "key", Value: key}}
+func (r *BookRepository) AttachFile(ctx context.Context, key string, fileID bson.ObjectID, size int64) (models.Book, error) {
+	filter := bson.D{{Key: "key", Value: key}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
 			{Key: "fileId", Value: fileID},
 			{Key: "hasFile", Value: true},
+			{Key: "sizeBytes", Value: size},
 		}},
 	}
 
@@ -216,7 +216,7 @@ func (r *BookRepository) AttachFile(ctx context.Context, owner, key string, file
 	if result.MatchedCount == 0 {
 		return models.Book{}, ErrNotFound
 	}
-	return r.Get(ctx, owner, key)
+	return r.Get(ctx, key)
 }
 
 func (r *BookRepository) appendHistory(ctx context.Context, filter bson.D, location models.Location) error {

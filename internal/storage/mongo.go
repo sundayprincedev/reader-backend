@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -41,23 +42,29 @@ func (c *Client) Bucket() *mongo.GridFSBucket {
 }
 
 func (c *Client) EnsureIndexes(ctx context.Context) error {
-	if _, err := c.Collection("books").Indexes().CreateMany(ctx, []mongo.IndexModel{
+	books := c.Collection("books")
+
+	for _, stale := range []string{"owner_1_key_1", "owner_1_updatedAt_-1"} {
+		if err := books.Indexes().DropOne(ctx, stale); err != nil && !isMissingIndex(err) {
+			return err
+		}
+	}
+
+	_, err := books.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
-			Keys:    bson.D{{Key: "owner", Value: 1}, {Key: "key", Value: 1}},
+			Keys:    bson.D{{Key: "key", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 		{
-			Keys: bson.D{{Key: "owner", Value: 1}, {Key: "updatedAt", Value: -1}},
+			Keys: bson.D{{Key: "updatedAt", Value: -1}},
 		},
-	}); err != nil {
-		return err
-	}
-
-	_, err := c.Collection("users").Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "email", Value: 1}},
-		Options: options.Index().SetUnique(true),
 	})
 	return err
+}
+
+func isMissingIndex(err error) bool {
+	var serverErr mongo.ServerError
+	return errors.As(err, &serverErr) && serverErr.HasErrorCode(27)
 }
 
 func (c *Client) Ping(ctx context.Context) error {

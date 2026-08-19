@@ -5,17 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
-
-	"github.com/sundayprincedev/reader-backend/internal/auth"
 )
-
-type contextKey string
-
-const ownerContextKey contextKey = "owner"
-
-const authHeader = "Authorization"
 
 func chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
 	for i := len(middlewares) - 1; i >= 0; i-- {
@@ -76,7 +67,7 @@ func withCORS(allowed []string) func(http.Handler) http.Handler {
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+authHeader)
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 
 			if r.Method == http.MethodOptions {
@@ -87,32 +78,6 @@ func withCORS(allowed []string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func withAuth(issuer *auth.Issuer) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			header := strings.TrimSpace(r.Header.Get(authHeader))
-			token, found := strings.CutPrefix(header, "Bearer ")
-			if !found {
-				writeError(w, http.StatusUnauthorized, "sign in to continue")
-				return
-			}
-
-			userID, err := issuer.Verify(strings.TrimSpace(token))
-			if err != nil {
-				writeError(w, http.StatusUnauthorized, "your session has expired")
-				return
-			}
-
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ownerContextKey, userID)))
-		})
-	}
-}
-
-func ownerFrom(ctx context.Context) string {
-	owner, _ := ctx.Value(ownerContextKey).(string)
-	return owner
 }
 
 type statusRecorder struct {

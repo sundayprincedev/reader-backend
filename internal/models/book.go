@@ -24,7 +24,6 @@ type Location struct {
 
 type Book struct {
 	Key         string         `bson:"key" json:"key"`
-	Owner       string         `bson:"owner" json:"owner"`
 	Title       string         `bson:"title" json:"title"`
 	Author      string         `bson:"author" json:"author"`
 	Format      string         `bson:"format" json:"format"`

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sundayprincedev/reader-backend/internal/api"
-	"github.com/sundayprincedev/reader-backend/internal/auth"
 	"github.com/sundayprincedev/reader-backend/internal/config"
 	"github.com/sundayprincedev/reader-backend/internal/repository"
 	"github.com/sundayprincedev/reader-backend/internal/storage"
@@ -51,15 +50,12 @@ func run() error {
 		return err
 	}
 
-	issuer := auth.NewIssuer(cfg.JWTSecret)
 	router := api.NewRouter(api.Options{
 		Books: api.NewHandler(
 			repository.NewBookRepository(client),
 			repository.NewFileRepository(client),
 			cfg.MaxUploadBytes,
 		),
-		Auth:           api.NewAuthHandler(repository.NewUserRepository(client), issuer),
-		Issuer:         issuer,
 		AllowedOrigins: cfg.AllowedOrigins,
 		Timeout:        cfg.RequestTimeout,
 		StaticDir:      os.Getenv("STATIC_DIR"),

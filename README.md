@@ -7,7 +7,6 @@ book storage.
 
 | Collection | Contents |
 | --- | --- |
-| `users` | Email and a bcrypt password hash |
 | `books` | Fingerprint, title, author, format, position, history, time read |
 | GridFS (`fs.*`) | The PDF / EPUB bytes |
 
@@ -17,36 +16,33 @@ A book is identified by a fingerprint the browser derives from the file (filenam
 ## Run it
 
 ```bash
-cp .env.example .env      # fill in MONGODB_URI and JWT_SECRET
+cp .env.example .env      # fill in MONGODB_URI
 go run .                  # http://localhost:8080
 ```
 
-Generate a signing key with `openssl rand -hex 32`.
+## No accounts
+
+This is a single-library service with no authentication: there is one shelf, and every request sees it.
+That is deliberate for a personal deployment, but it means **anyone who knows the URL can read, upload, and
+delete books**. Keep the URL private, or put the service behind a proxy or network rule that only you can
+reach.
 
 ## Environment
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `MONGODB_URI` | yes | — | MongoDB connection string |
-| `JWT_SECRET` | yes | — | Session signing key, 32+ characters |
 | `MONGODB_DATABASE` | no | `mereader` | Database name |
 | `PORT` | no | `8080` | Listen port (Railway sets this) |
 | `ALLOWED_ORIGINS` | no | `*` | Comma-separated CORS origins |
 | `MAX_UPLOAD_MB` | no | `80` | Largest book accepted |
 | `STATIC_DIR` | no | — | Serve a built frontend from this directory |
 
-Changing `JWT_SECRET` signs everyone out, so keep it stable once you are live.
-
 ## API
-
-Everything except `/api/health` and the two auth routes needs `Authorization: Bearer <token>`.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Liveness probe |
-| `POST` | `/api/auth/register` | Create an account, returns a token |
-| `POST` | `/api/auth/login` | Sign in, returns a token |
-| `GET` | `/api/auth/me` | The signed-in account |
 | `GET` | `/api/books` | Library plus aggregate stats |
 | `POST` | `/api/books` | Register or update a book by fingerprint |
 | `GET` | `/api/books/{key}` | One book with its saved position |
@@ -57,8 +53,9 @@ Everything except `/api/health` and the two auth routes needs `Authorization: Be
 | `POST` | `/api/books/{key}/restore` | Jump back to a history checkpoint |
 | `DELETE` | `/api/books/{key}` | Remove a book and its stored file |
 
-Books belong to the account that created them; another account asking for one gets a 404 rather than a 403,
-so the API never confirms that a fingerprint exists.
+Uploads are checked against the format's magic number, so a file that is not really a PDF or EPUB is
+rejected rather than stored. A book's bytes can only be attached once; re-uploading returns the existing
+book instead of overwriting it. The stored size is measured server-side, not taken from the client.
 
 ### Removing a book
 
@@ -74,10 +71,9 @@ without reimplementing it.
 ```
 main.go                     startup, graceful shutdown
 internal/config             environment loading
-internal/auth               bcrypt hashing, JWT signing
 internal/storage            Mongo connection, indexes, GridFS bucket
 internal/models             documents and request/response shapes
-internal/repository         data access for users, books, files
+internal/repository         data access for books and files
 internal/api                handlers, middleware, routing
 ```
 
@@ -85,7 +81,7 @@ internal/api                handlers, middleware, routing
 
 1. [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo** → this repository.
    `railway.json` selects the Dockerfile and the `/api/health` healthcheck.
-2. In **Variables**, set `MONGODB_URI`, `MONGODB_DATABASE`, `JWT_SECRET`, and `ALLOWED_ORIGINS`.
+2. In **Variables**, set `MONGODB_URI`, `MONGODB_DATABASE`, and `ALLOWED_ORIGINS`.
    Do **not** set `PORT` — Railway injects it and the server already reads it.
 3. In Atlas → **Network Access**, allow `0.0.0.0/0`. Railway has no fixed egress IPs on the standard plan,
    and deploys time out until this is done.

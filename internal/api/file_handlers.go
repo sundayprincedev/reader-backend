@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/sundayprincedev/reader-backend/internal/models"
@@ -14,6 +16,11 @@ var contentTypes = map[string]string{
 	models.FormatEPUB: "application/epub+zip",
 }
 
+var magicNumbers = map[string][]byte{
+	models.FormatPDF:  []byte("%PDF-"),
+	models.FormatEPUB: {'P', 'K', 0x03, 0x04},
+}
+
 func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	if !validKey(key) {
@@ -21,9 +28,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := ownerFrom(r.Context())
-
-	book, err := h.books.Get(r.Context(), owner, key)
+	book, err := h.books.Get(r.Context(), key)
 	if err != nil {
 		respondRepositoryError(w, err, "could not load book")
 		return
@@ -33,10 +38,11 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limit := fmt.Sprintf("file must be %d MB or smaller", h.maxUploadBytes/(1<<20))
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxUploadBytes)
 
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("file must be %d MB or smaller", h.maxUploadBytes/(1<<20)))
+		writeError(w, http.StatusRequestEntityTooLarge, limit)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
@@ -49,7 +55,12 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	defer upload.Close()
 
 	if header.Size > h.maxUploadBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("file must be %d MB or smaller", h.maxUploadBytes/(1<<20)))
+		writeError(w, http.StatusRequestEntityTooLarge, limit)
+		return
+	}
+
+	if err := verifyMagicNumber(upload, book.Format); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -59,7 +70,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.books.AttachFile(r.Context(), owner, key, fileID)
+	updated, err := h.books.AttachFile(r.Context(), key, fileID, header.Size)
 	if err != nil {
 		_ = h.files.Delete(r.Context(), fileID)
 		respondRepositoryError(w, err, "could not attach file")
@@ -76,7 +87,7 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.books.Get(r.Context(), ownerFrom(r.Context()), key)
+	book, err := h.books.Get(r.Context(), key)
 	if err != nil {
 		respondRepositoryError(w, err, "could not load book")
 		return
@@ -95,9 +106,29 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentTypes[book.Format])
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", book.SizeBytes))
 
 	if err := h.files.Stream(r.Context(), *book.FileID, w); err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return
 	}
+}
+
+func verifyMagicNumber(file io.ReadSeeker, format string) error {
+	expected, known := magicNumbers[format]
+	if !known {
+		return errors.New("unsupported format")
+	}
+
+	header := make([]byte, len(expected))
+	if _, err := io.ReadFull(file, header); err != nil {
+		return errors.New("file is empty or unreadable")
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return errors.New("file could not be read")
+	}
+
+	if !bytes.Equal(header, expected) {
+		return fmt.Errorf("that file is not a valid %s", format)
+	}
+	return nil
 }

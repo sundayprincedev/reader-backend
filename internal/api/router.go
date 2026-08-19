@@ -6,37 +6,27 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/sundayprincedev/reader-backend/internal/auth"
 )
 
 type Options struct {
 	Books          *Handler
-	Auth           *AuthHandler
-	Issuer         *auth.Issuer
 	AllowedOrigins []string
 	Timeout        time.Duration
 	StaticDir      string
 }
 
 func NewRouter(opts Options) http.Handler {
-	guard := withAuth(opts.Issuer)
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", opts.Books.Health)
-	mux.HandleFunc("POST /api/auth/register", opts.Auth.Register)
-	mux.HandleFunc("POST /api/auth/login", opts.Auth.Login)
-	mux.Handle("GET /api/auth/me", guard(http.HandlerFunc(opts.Auth.Me)))
-
-	mux.Handle("GET /api/books", guard(http.HandlerFunc(opts.Books.ListBooks)))
-	mux.Handle("POST /api/books", guard(http.HandlerFunc(opts.Books.RegisterBook)))
-	mux.Handle("GET /api/books/{key}", guard(http.HandlerFunc(opts.Books.GetBook)))
-	mux.Handle("DELETE /api/books/{key}", guard(http.HandlerFunc(opts.Books.DeleteBook)))
-	mux.Handle("PUT /api/books/{key}/progress", guard(http.HandlerFunc(opts.Books.SaveProgress)))
-	mux.Handle("POST /api/books/{key}/reset", guard(http.HandlerFunc(opts.Books.ResetProgress)))
-	mux.Handle("POST /api/books/{key}/restore", guard(http.HandlerFunc(opts.Books.RestoreProgress)))
-	mux.Handle("POST /api/books/{key}/file", guard(http.HandlerFunc(opts.Books.UploadFile)))
-	mux.Handle("GET /api/books/{key}/file", guard(http.HandlerFunc(opts.Books.DownloadFile)))
+	mux.HandleFunc("GET /api/books", opts.Books.ListBooks)
+	mux.HandleFunc("POST /api/books", opts.Books.RegisterBook)
+	mux.HandleFunc("GET /api/books/{key}", opts.Books.GetBook)
+	mux.HandleFunc("DELETE /api/books/{key}", opts.Books.DeleteBook)
+	mux.HandleFunc("PUT /api/books/{key}/progress", opts.Books.SaveProgress)
+	mux.HandleFunc("POST /api/books/{key}/reset", opts.Books.ResetProgress)
+	mux.HandleFunc("POST /api/books/{key}/restore", opts.Books.RestoreProgress)
+	mux.HandleFunc("POST /api/books/{key}/file", opts.Books.UploadFile)
+	mux.HandleFunc("GET /api/books/{key}/file", opts.Books.DownloadFile)
 
 	root := http.NewServeMux()
 	root.Handle("/api/", mux)

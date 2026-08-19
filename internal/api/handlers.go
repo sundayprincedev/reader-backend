@@ -28,7 +28,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListBooks(w http.ResponseWriter, r *http.Request) {
-	books, err := h.books.List(r.Context(), ownerFrom(r.Context()))
+	books, err := h.books.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load library")
 		return
@@ -61,7 +61,7 @@ func (h *Handler) RegisterBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.books.Register(r.Context(), ownerFrom(r.Context()), req)
+	book, err := h.books.Register(r.Context(), req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not register book")
 		return
@@ -77,7 +77,7 @@ func (h *Handler) GetBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.books.Get(r.Context(), ownerFrom(r.Context()), key)
+	book, err := h.books.Get(r.Context(), key)
 	if err != nil {
 		respondRepositoryError(w, err, "could not load book")
 		return
@@ -98,7 +98,7 @@ func (h *Handler) SaveProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.books.SaveProgress(r.Context(), ownerFrom(r.Context()), key, req)
+	book, err := h.books.SaveProgress(r.Context(), key, req)
 	if err != nil {
 		respondRepositoryError(w, err, "could not save progress")
 		return
@@ -114,7 +114,7 @@ func (h *Handler) ResetProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.books.Reset(r.Context(), ownerFrom(r.Context()), key)
+	book, err := h.books.Reset(r.Context(), key)
 	if err != nil {
 		respondRepositoryError(w, err, "could not reset progress")
 		return
@@ -137,7 +137,7 @@ func (h *Handler) RestoreProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.books.Restore(r.Context(), ownerFrom(r.Context()), key, req.Index)
+	book, err := h.books.Restore(r.Context(), key, req.Index)
 	if err != nil {
 		respondRepositoryError(w, err, "could not restore checkpoint")
 		return
@@ -153,9 +153,7 @@ func (h *Handler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := ownerFrom(r.Context())
-
-	book, err := h.books.Get(r.Context(), owner, key)
+	book, err := h.books.Get(r.Context(), key)
 	if err != nil {
 		respondRepositoryError(w, err, "could not remove book")
 		return
@@ -166,7 +164,7 @@ func (h *Handler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.books.Delete(r.Context(), owner, key); err != nil {
+	if err := h.books.Delete(r.Context(), key); err != nil {
 		respondRepositoryError(w, err, "could not remove book")
 		return
 	}
