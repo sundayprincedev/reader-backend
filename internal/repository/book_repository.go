@@ -100,12 +100,18 @@ func (r *BookRepository) List(ctx context.Context) ([]models.Book, error) {
 func (r *BookRepository) SaveProgress(ctx context.Context, key string, req models.ProgressRequest) (models.Book, error) {
 	now := time.Now().UTC()
 	location := models.Location{
-		Page:     req.Page,
-		Pages:    req.Pages,
-		Cfi:      req.Cfi,
-		Offset:   req.Offset,
-		Percent:  clampPercent(req.Percent),
-		Label:    req.Label,
+		Page:    req.Page,
+		Pages:   req.Pages,
+		Cfi:     req.Cfi,
+		Offset:  req.Offset,
+		Percent: clampPercent(req.Percent),
+		Label:   req.Label,
+		Viewport: models.Viewport{
+			Width:  req.Width,
+			Height: req.Height,
+			Scale:  req.Scale,
+		},
+		Manual:   req.Manual,
 		Recorded: now,
 	}
 
@@ -234,6 +240,10 @@ func (r *BookRepository) appendHistory(ctx context.Context, filter bson.D, locat
 }
 
 func shouldCheckpoint(previous models.Book, next models.Location) bool {
+	if next.Manual {
+		return true
+	}
+
 	if len(previous.History) == 0 {
 		return next.Percent > 0
 	}

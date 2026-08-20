@@ -12,6 +12,12 @@ const (
 	FormatEPUB = "epub"
 )
 
+type Viewport struct {
+	Width  int     `bson:"width" json:"width"`
+	Height int     `bson:"height" json:"height"`
+	Scale  float64 `bson:"scale" json:"scale"`
+}
+
 type Location struct {
 	Page     int       `bson:"page" json:"page"`
 	Pages    int       `bson:"pages" json:"pages"`
@@ -19,6 +25,8 @@ type Location struct {
 	Offset   float64   `bson:"offset" json:"offset"`
 	Percent  float64   `bson:"percent" json:"percent"`
 	Label    string    `bson:"label" json:"label"`
+	Viewport Viewport  `bson:"viewport" json:"viewport"`
+	Manual   bool      `bson:"manual" json:"manual"`
 	Recorded time.Time `bson:"recorded" json:"recorded"`
 }
 
@@ -72,6 +80,10 @@ type ProgressRequest struct {
 	Offset      float64 `json:"offset"`
 	Percent     float64 `json:"percent"`
 	Label       string  `json:"label"`
+	Width       int     `json:"width"`
+	Height      int     `json:"height"`
+	Scale       float64 `json:"scale"`
+	Manual      bool    `json:"manual"`
 	SecondsRead int64   `json:"secondsRead"`
 }
 
